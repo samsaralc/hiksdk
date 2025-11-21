@@ -3,7 +3,7 @@
 [![Go Version](https://img.shields.io/badge/Go-%3E%3D%201.25-blue)](https://golang.org/)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-> 🎥 海康威视设备的完整 Go 语言 SDK 封装，提供设备管理、PTZ 云台控制、视频预览、报警监听等功能。
+> 🎥 海康威视设备的 Go 语言封装，覆盖登录、设备信息、PTZ 云台控制、视频预览、报警监听等常用功能。
 
 ## 📖 简介
 
@@ -11,12 +11,12 @@ HikSDK 是海康威视官方 C SDK 的 Go 语言封装，通过 CGO 调用底层
 
 ## ✨ 功能特性
 
-- ✅ **设备管理**：设备登录/登出、获取设备信息、通道管理
-- ✅ **PTZ 控制**：云台旋转、变焦、焦点调节、预置点管理
-- ✅ **视频预览**：实时视频流获取
-- ✅ **报警监听**：移动侦测、遮挡报警等事件监听
-- ✅ **跨平台支持**：完美兼容 Windows 和 Linux 系统（使用 CGO）
-- ✅ **完整测试**：提供单元测试和示例代码
+- ✅ **设备管理**：设备登录/登出，获取设备信息，通道名称读取
+- ✅ **PTZ 控制**：云台旋转、变焦、焦点调节、预置点管理（配套 `consts` 常量包）
+- ✅ **视频预览**：实时视频预览，输出 PS 流，配合 `Receiver` 管道进行消费
+- ✅ **报警监听**：报警回调、布防/撤防、报警输出控制
+- ✅ **错误处理**：统一的 `HKError` 错误类型，带错误码和说明
+- ✅ **跨平台支持**：兼容 Windows / Linux amd64（内置海康官方 SDK 动态库）
 
 ## 🌍 跨平台兼容性
 
@@ -30,7 +30,7 @@ HikSDK 是海康威视官方 C SDK 的 Go 语言封装，通过 CGO 调用底层
 
 ### 技术特性
 - 🔧 **智能链接顺序**：优化了库链接顺序，确保依赖关系正确
-- 🧵 **线程安全**：使用 `sync.Once` 确保 SDK 初始化的线程安全
+- 🧵 **线程安全**：使用互斥锁和生命周期标记管理 SDK 的初始化与清理，可在 `Cleanup()` 后安全重新初始化
 - 📦 **资源管理**：使用 `cgo.Handle` 正确管理 Go 与 C 之间的资源传递
 - 🎯 **零拷贝优化**：在回调函数中使用零拷贝技术提高性能
 - 🛡️ **安全边界检查**：所有 C 字符串操作都有边界检查，防止缓冲区溢出
@@ -261,11 +261,10 @@ func main() {
 }
 ```
 
-> ✨ **新特性说明（v1.4.0+）**:
-> - SDK会在第一次调用`NewHKDevice()`时自动初始化
-> - 使用`sync.Once`确保只初始化一次，线程安全
-> - 无需手动调用`InitHikSDK()`
-> - 向后兼容，旧代码仍然可以工作
+> ✨ **设计说明**:
+> - SDK 会在第一次调用 `NewHKDevice()` 时自动初始化，进程结束前只需调用一次 `Cleanup()` 即可清理资源
+> - 内部使用互斥锁和状态标记保证初始化/清理的线程安全
+> - 不再需要单独的 `InitHikSDK()`，示例中的用法已经反映了最新的生命周期设计
 
 #### 完整示例（带错误处理）
 
@@ -274,16 +273,15 @@ package main
 
 import (
 	"fmt"
-	"hiksdk/pkg"
+	"github.com/samsaralc/hiksdk/core"
 	"os"
 )
 
 func main() {
-	// 1. 初始化 SDK
-	core.InitHikSDK()
+	// 1. 配置设备
 	defer core.Cleanup()
 
-	// 2. 配置设备
+	// 2. 创建设备
 	dev := core.NewHKDevice(core.DeviceInfo{
 		IP:       "192.168.1.64",
 		Port:     8000,
@@ -328,54 +326,60 @@ func main() {
 ```go
 import (
 	"time"
+	"github.com/samsaralc/hiksdk/consts"
 	"github.com/samsaralc/hiksdk/core"
 )
 
 // SDK 已经提供了所有 PTZ 命令常量，直接使用
-// core.PAN_RIGHT, core.TILT_UP, core.ZOOM_IN 等
+// consts.PAN_RIGHT, consts.TILT_UP, consts.ZOOM_IN 等
 
 // 云台右转（推荐使用 PTZControlWithSpeed_Other）
 success, err := dev.PTZControlWithSpeed_Other(
-	1,              // 通道号
-	core.PAN_RIGHT,  // PTZ命令：右转
-	0,              // dwStop=0 开始动作
-	4,              // 速度：0-7
+	1,                 // 通道号
+	consts.PAN_RIGHT,  // PTZ命令：右转
+	consts.PTZ_START,  // 开始动作
+	4,                 // 速度：0-7
 )
 if err == nil && success {
 	time.Sleep(2 * time.Second)
-	// 停止（dwStop=1）
-	dev.PTZControlWithSpeed_Other(1, core.PAN_RIGHT, 1, 4)
+	// 停止
+	dev.PTZControlWithSpeed_Other(1, consts.PAN_RIGHT, consts.PTZ_STOP, 4)
 }
 
 // 变焦放大（不需要速度参数）
-dev.PTZControl_Other(1, core.ZOOM_IN, 0)
+dev.PTZControl_Other(1, consts.ZOOM_IN, consts.PTZ_START)
 time.Sleep(1 * time.Second)
-dev.PTZControl_Other(1, core.ZOOM_IN, 1) // 停止
+dev.PTZControl_Other(1, consts.ZOOM_IN, consts.PTZ_STOP) // 停止
 ```
 
 #### PTZ 控制完整示例
 
 ```go
-import "github.com/samsaralc/hiksdk/core"
+import (
+	"time"
+
+	"github.com/samsaralc/hiksdk/consts"
+	"github.com/samsaralc/hiksdk/core"
+)
 
 // 云台移动示例
 func ptzMoveExample(dev *core.HKDevice) {
 	channelId := 1
 	
 	// 右转 2 秒
-	dev.PTZControlWithSpeed_Other(channelId, core.PAN_RIGHT, core.PTZ_START, 4)
+	dev.PTZControlWithSpeed_Other(channelId, consts.PAN_RIGHT, consts.PTZ_START, 4)
 	time.Sleep(2 * time.Second)
-	dev.PTZControlWithSpeed_Other(channelId, core.PAN_RIGHT, core.PTZ_STOP, 4)
+	dev.PTZControlWithSpeed_Other(channelId, consts.PAN_RIGHT, consts.PTZ_STOP, 4)
 	
 	// 上仰 2 秒
-	dev.PTZControlWithSpeed_Other(channelId, core.TILT_UP, core.PTZ_START, 4)
+	dev.PTZControlWithSpeed_Other(channelId, consts.TILT_UP, consts.PTZ_START, 4)
 	time.Sleep(2 * time.Second)
-	dev.PTZControlWithSpeed_Other(channelId, core.TILT_UP, core.PTZ_STOP, 4)
+	dev.PTZControlWithSpeed_Other(channelId, consts.TILT_UP, consts.PTZ_STOP, 4)
 	
 	// 右上斜向移动
-	dev.PTZControlWithSpeed_Other(channelId, core.UP_RIGHT, core.PTZ_START, 3)
+	dev.PTZControlWithSpeed_Other(channelId, consts.UP_RIGHT, consts.PTZ_START, 3)
 	time.Sleep(2 * time.Second)
-	dev.PTZControlWithSpeed_Other(channelId, core.UP_RIGHT, core.PTZ_STOP, 3)
+	dev.PTZControlWithSpeed_Other(channelId, consts.UP_RIGHT, consts.PTZ_STOP, 3)
 }
 
 // 变焦和焦点控制示例
@@ -383,14 +387,14 @@ func zoomFocusExample(dev *core.HKDevice) {
 	channelId := 1
 	
 	// 焦距放大（拉近）
-	dev.PTZControl_Other(channelId, core.ZOOM_IN, 0)
+	dev.PTZControl_Other(channelId, consts.ZOOM_IN, consts.PTZ_START)
 	time.Sleep(1 * time.Second)
-	dev.PTZControl_Other(channelId, core.ZOOM_IN, 1)
+	dev.PTZControl_Other(channelId, consts.ZOOM_IN, consts.PTZ_STOP)
 	
 	// 焦点前调（聚焦）
-	dev.PTZControl_Other(channelId, core.FOCUS_NEAR, 0)
+	dev.PTZControl_Other(channelId, consts.FOCUS_NEAR, consts.PTZ_START)
 	time.Sleep(1 * time.Second)
-	dev.PTZControl_Other(channelId, core.FOCUS_NEAR, 1)
+	dev.PTZControl_Other(channelId, consts.FOCUS_NEAR, consts.PTZ_STOP)
 }
 
 // 预置点使用示例
@@ -399,15 +403,15 @@ func presetExample(dev *core.HKDevice) {
 	presetId := 1
 	
 	// 设置预置点1
-	dev.PTZControl_Other(channelId, core.SET_PRESET, presetId)
+	dev.PTZControl_Other(channelId, consts.SET_PRESET, presetId)
 	
 	// 移动云台到其他位置
-	dev.PTZControlWithSpeed_Other(channelId, core.PAN_RIGHT, 0, 4)
+	dev.PTZControlWithSpeed_Other(channelId, consts.PAN_RIGHT, consts.PTZ_START, 4)
 	time.Sleep(3 * time.Second)
-	dev.PTZControlWithSpeed_Other(channelId, core.PAN_RIGHT, 1, 4)
+	dev.PTZControlWithSpeed_Other(channelId, consts.PAN_RIGHT, consts.PTZ_STOP, 4)
 	
 	// 转到预置点1
-	dev.PTZControl_Other(channelId, core.GOTO_PRESET, presetId)
+	dev.PTZControl_Other(channelId, consts.GOTO_PRESET, presetId)
 	time.Sleep(2 * time.Second) // 等待云台移动到位
 }
 ```
@@ -608,9 +612,9 @@ success, err := dev.PTZControlWithSpeed_Other(
 
 // PTZControl_Other - 无速度参数
 success, err := dev.PTZControl_Other(
-	channelId,        // 通道号
-	core.ZOOM_IN,      // PTZ命令
-	core.PTZ_START,    // 0=开始，1=停止
+	channelId,         // 通道号
+	consts.ZOOM_IN,    // PTZ命令
+	consts.PTZ_START,  // 0=开始，1=停止
 )
 
 // PTZControlWithSpeed - 需要先启动预览
@@ -618,78 +622,78 @@ receiver := &core.Receiver{}
 receiver.Start()
 lRealHandle, _ := dev.RealPlay_V40(1, receiver)
 // 现在可以使用（控制当前预览的通道）
-success, err := dev.PTZControlWithSpeed(core.PAN_RIGHT, core.PTZ_START, 4)
+success, err := dev.PTZControlWithSpeed(consts.PAN_RIGHT, consts.PTZ_START, 4)
 ```
 
 #### 2. PTZ 命令常量（已内置 63 个命令）
 
 ```go
 // ========== 基本移动（需要速度） ==========
-core.TILT_UP    = 21  // 云台上仰
-core.TILT_DOWN  = 22  // 云台下俯
-core.PAN_LEFT   = 23  // 云台左转
-core.PAN_RIGHT  = 24  // 云台右转
+consts.TILT_UP    = 21  // 云台上仰
+consts.TILT_DOWN  = 22  // 云台下俯
+consts.PAN_LEFT   = 23  // 云台左转
+consts.PAN_RIGHT  = 24  // 云台右转
 
 // ========== 组合移动（需要速度） ==========
-core.UP_LEFT    = 25  // 上仰+左转
-core.UP_RIGHT   = 26  // 上仰+右转
-core.DOWN_LEFT  = 27  // 下俯+左转
-core.DOWN_RIGHT = 28  // 下俯+右转
+consts.UP_LEFT    = 25  // 上仰+左转
+consts.UP_RIGHT   = 26  // 上仰+右转
+consts.DOWN_LEFT  = 27  // 下俯+左转
+consts.DOWN_RIGHT = 28  // 下俯+右转
 
 // ========== 焦距控制 ==========
-core.ZOOM_IN    = 11  // 焦距变大（拉近）
-core.ZOOM_OUT   = 12  // 焦距变小（拉远）
+consts.ZOOM_IN    = 11  // 焦距变大（拉近）
+consts.ZOOM_OUT   = 12  // 焦距变小（拉远）
 
 // ========== 焦点控制 ==========
-core.FOCUS_NEAR = 13  // 焦点前调
-core.FOCUS_FAR  = 14  // 焦点后调
+consts.FOCUS_NEAR = 13  // 焦点前调
+consts.FOCUS_FAR  = 14  // 焦点后调
 
 // ========== 光圈控制 ==========
-core.IRIS_OPEN  = 15  // 光圈扩大（变亮）
-core.IRIS_CLOSE = 16  // 光圈缩小（变暗）
+consts.IRIS_OPEN  = 15  // 光圈扩大（变亮）
+consts.IRIS_CLOSE = 16  // 光圈缩小（变暗）
 
 // ========== 预置点操作 ==========
-core.SET_PRESET  = 8   // 设置预置点
-core.CLE_PRESET  = 9   // 清除预置点
-core.GOTO_PRESET = 39  // 转到预置点
+consts.SET_PRESET  = 8   // 设置预置点
+consts.CLE_PRESET  = 9   // 清除预置点
+consts.GOTO_PRESET = 39  // 转到预置点
 
 // ========== 辅助设备 ==========
-core.LIGHT_PWRON  = 2  // 接通灯光
-core.WIPER_PWRON  = 3  // 接通雨刷
+consts.LIGHT_PWRON  = 2  // 接通灯光
+consts.WIPER_PWRON  = 3  // 接通雨刷
 
 // ========== 自动扫描 ==========
-core.PAN_AUTO   = 29  // 左右自动扫描
-core.PAN_CIRCLE = 50  // 圆周扫描
+consts.PAN_AUTO   = 29  // 左右自动扫描
+consts.PAN_CIRCLE = 50  // 圆周扫描
 
 // ========== 巡航和轨迹 ==========
-core.RUN_SEQ         = 37  // 开始巡航
-core.STOP_SEQ        = 38  // 停止巡航
-core.RUN_CRUISE      = 36  // 开始轨迹
-core.STOP_CRUISE     = 44  // 停止轨迹
+consts.RUN_SEQ         = 37  // 开始巡航
+consts.STOP_SEQ        = 38  // 停止巡航
+consts.RUN_CRUISE      = 36  // 开始轨迹
+consts.STOP_CRUISE     = 44  // 停止轨迹
 
 // ========== 组合控制（移动+变焦） ==========
-core.TILT_DOWN_ZOOM_IN  = 58  // 下俯+放大
-core.PAN_LEFT_ZOOM_IN   = 60  // 左转+放大
-core.PAN_RIGHT_ZOOM_IN  = 62  // 右转+放大
+consts.TILT_DOWN_ZOOM_IN  = 58  // 下俯+放大
+consts.PAN_LEFT_ZOOM_IN   = 60  // 左转+放大
+consts.PAN_RIGHT_ZOOM_IN  = 62  // 右转+放大
 // ... 更多组合命令，共63个
 
-// 查看完整命令列表：pkg/ptz_commands.go
+// 查看完整命令列表：consts/ptz.go
 ```
 
 #### 3. 辅助常量
 
 ```go
 // 动作控制
-core.PTZ_START = 0  // 开始动作
-core.PTZ_STOP  = 1  // 停止动作
+consts.PTZ_START = 0  // 开始动作
+consts.PTZ_STOP  = 1  // 停止动作
 
 // 速度控制
-core.PTZ_SPEED_MIN     = 0  // 最小速度
-core.PTZ_SPEED_MAX     = 7  // 最大速度
-core.PTZ_SPEED_DEFAULT = 4  // 默认速度
+consts.PTZ_SPEED_MIN     = 0  // 最小速度
+consts.PTZ_SPEED_MAX     = 7  // 最大速度
+consts.PTZ_SPEED_DEFAULT = 4  // 默认速度
 
 // 获取命令名称（调试用）
-name := core.GetPTZCommandName(core.PAN_RIGHT)
+name := consts.GetPTZCommandName(consts.PAN_RIGHT)
 // 返回: "云台右转"
 ```
 
