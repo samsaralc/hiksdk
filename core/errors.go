@@ -31,22 +31,23 @@ func (e *HKError) JSON() string {
 	return string(data)
 }
 
-// HKErr 创建海康SDK错误
+// NewHKError 创建海康SDK错误
 // 自动获取最后的错误码和错误消息
 // 参数：
 //   - operation: 操作名称，用于标识出错的操作
+//   - ip: 设备IP地址（可选）
 //
 // 返回值：
 //   - *HKError: 错误对象
-func (device *HKDevice) HKErr(operation string) *HKError {
+func NewHKError(operation string, ip string) *HKError {
 	errorCode := int(C.NET_DVR_GetLastError())
 	errorMsg := getErrorMsg(errorCode)
-	
+
 	return &HKError{
 		Code:      errorCode,
 		Msg:       errorMsg,
 		Operation: operation,
-		IP:        device.ip,
+		IP:        ip,
 	}
 }
 
@@ -236,7 +237,7 @@ func getErrorMsg(code int) string {
 		526: "未授权的功能资源",
 		800: "设备不在线",
 	}
-	
+
 	if msg, exists := errorMsgs[code]; exists {
 		return msg
 	}

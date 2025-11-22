@@ -106,15 +106,7 @@ extern "C" {
 #define NET_DVR_NETWORK_RECV_ERROR  9   // 从服务器接收数据失败
 #define NET_DVR_NETWORK_RECV_TIMEOUT 10 // 从服务器接收数据超时
 
-// 设备命令常量（用于 GetDVRConfig/SetDVRConfig）
-#define NET_DVR_GET_DEVICECFG       100  // 获取设备参数
-#define NET_DVR_SET_DEVICECFG       101  // 设置设备参数
-#define NET_DVR_GET_PICCFG          102  // 获取图像参数
-#define NET_DVR_SET_PICCFG          103  // 设置图像参数
-#define NET_DVR_GET_PTZPOS          293  // 获取PTZ位置
-#define NET_DVR_SET_PTZPOS          294  // 设置PTZ位置
-
-// 预览流类型
+// 预览流类型（云台控制需要指定）
 #define STREAM_TYPE_MAIN            0    // 主码流
 #define STREAM_TYPE_SUB             1    // 子码流
 
@@ -224,7 +216,7 @@ typedef struct tagNET_DVR_SETUPALARM_PARAM {
  * 数据结构定义 - 预览相关
  * ======================================================================== */
 
-// 预览信息
+// 预览信息（云台控制需要通过预览句柄操作）
 typedef struct tagNET_DVR_PREVIEWINFO {
     LONG  lChannel;                           // 通道号
     DWORD dwStreamType;                       // 码流类型：0-主码流，1-子码流，2-三码流
@@ -245,112 +237,25 @@ typedef struct tagNET_DVR_PREVIEWINFO {
 } NET_DVR_PREVIEWINFO, *LPNET_DVR_PREVIEWINFO;
 
 /* ========================================================================
- * 数据结构定义 - 设备配置相关
+ * 数据结构定义 - 设备配置相关（文档未涉及，保留注释供参考）
  * ======================================================================== */
 
-// 设备配置参数
-typedef struct tagNET_DVR_DEVICECFG {
-    DWORD dwSize;                             // 结构体大小
-    BYTE  sDVRName[MAX_DEVICE_NAME_LEN];      // 设备名称
-    DWORD dwDVRID;                            // 设备ID
-    DWORD dwRecycleRecord;                    // 是否循环录像：0-不是，1-是
-    BYTE  sSerialNumber[MAX_SERIALNO_LEN];    // 序列号
-    DWORD dwSoftwareVersion;                  // 软件版本号
-    DWORD dwSoftwareBuildDate;                // 软件生成日期
-    DWORD dwDSPSoftwareVersion;               // DSP软件版本
-    DWORD dwDSPSoftwareBuildDate;             // DSP软件生成日期
-    DWORD dwPanelVersion;                     // 前面板版本
-    DWORD dwHardwareVersion;                  // 硬件版本
-    BYTE  byAlarmInPortNum;                   // 报警输入个数
-    BYTE  byAlarmOutPortNum;                  // 报警输出个数
-    BYTE  byRS232Num;                         // RS232个数
-    BYTE  byRS485Num;                         // RS485个数
-    BYTE  byNetworkPortNum;                   // 网络口个数
-    BYTE  byDiskNum;                          // 硬盘个数
-    BYTE  byDVRType;                          // 设备类型
-    BYTE  byChanNum;                          // 模拟通道个数
-    BYTE  byStartChan;                        // 起始通道号
-    BYTE  byDecordChans;                      // 解码路数
-    BYTE  byVGANum;                           // VGA口个数
-    BYTE  byUSBNum;                           // USB口个数
-    BYTE  byAuxoutNum;                        // 辅口个数
-    BYTE  byAudioNum;                         // 语音口个数
-    BYTE  byIPChanNum;                        // 最大数字通道数
-    BYTE  byZeroChanNum;                      // 零通道编码个数
-    BYTE  bySupport;                          // 能力集
-    BYTE  byEsataUseage;                      // Esata的默认用途
-    BYTE  byIPCPlug;                          // 是否支持即插即用
-    BYTE  byStorageMode;                      // 存储模式
-    BYTE  bySupport1;                         // 能力集扩展
-    WORD  wDevType;                           // 设备型号
-    BYTE  byDevTypeName[16];                  // 设备型号名称
-    BYTE  bySupport2;                         // 能力集扩展
-    BYTE  byAnalogAlarmInPortNum;             // 模拟报警输入个数
-    BYTE  byStartAlarmInNo;                   // 模拟报警输入起始号
-    BYTE  byStartAlarmOutNo;                  // 模拟报警输出起始号
-    BYTE  byStartIPAlarmInNo;                 // IP报警输入起始号
-    BYTE  byStartIPAlarmOutNo;                // IP报警输出起始号
-    BYTE  byHighIPChanNum;                    // 数字通道个数，高8位
-    BYTE  byEnableRemotePowerOn;              // 是否启用远程开机
-    WORD  wDevClass;                          // 设备分类
-    BYTE  byRes2[6];                          // 保留
-} NET_DVR_DEVICECFG, *LPNET_DVR_DEVICECFG;
-
-// 图像参数
-typedef struct tagNET_DVR_PICCFG {
-    DWORD dwSize;                             // 结构体大小
-    BYTE  sChanName[MAX_CHANNEL_NAME_LEN];    // 通道名称
-    DWORD dwVideoFormat;                      // 视频制式：1-NTSC，2-PAL
-    BYTE  byBrightness;                       // 亮度：0-255
-    BYTE  byContrast;                         // 对比度：0-255
-    BYTE  bySaturation;                       // 饱和度：0-255
-    BYTE  byHue;                              // 色调：0-255
-    DWORD dwShowChanName;                     // 是否显示通道名称：0-不显示，1-显示
-    WORD  wShowNameTopLeftX;                  // 通道名称显示位置X坐标
-    WORD  wShowNameTopLeftY;                  // 通道名称显示位置Y坐标
-    DWORD dwEnableHide;                       // 是否启动遮挡：0-否，1-是
-    WORD  wHideAreaTopLeftX;                  // 遮挡区域X坐标
-    WORD  wHideAreaTopLeftY;                  // 遮挡区域Y坐标
-    WORD  wHideAreaWidth;                     // 遮挡区域宽度
-    WORD  wHideAreaHeight;                    // 遮挡区域高度
-    BYTE  byRes[16];                          // 保留
-} NET_DVR_PICCFG, *LPNET_DVR_PICCFG;
+// 注：设备配置相关结构（NET_DVR_DEVICECFG, NET_DVR_PICCFG）已删除
+// 当前封装不涉及设备配置功能
 
 /* ========================================================================
- * 数据结构定义 - PTZ相关
+ * 数据结构定义 - PTZ相关（文档未涉及，保留注释供参考）
  * ======================================================================== */
 
-// PTZ位置信息
-typedef struct tagNET_DVR_PTZPOS {
-    WORD wAction;                             // 操作类型：1-定位，2-连续
-    WORD wPanPos;                             // 水平参数
-    WORD wTiltPos;                            // 垂直参数
-    WORD wZoomPos;                            // 变焦参数
-} NET_DVR_PTZPOS, *LPNET_DVR_PTZPOS;
-
-// PTZ范围信息
-typedef struct tagNET_DVR_PTZSCOPE {
-    WORD wPanPosMin;                          // 水平参数最小值
-    WORD wPanPosMax;                          // 水平参数最大值
-    WORD wTiltPosMin;                         // 垂直参数最小值
-    WORD wTiltPosMax;                         // 垂直参数最大值
-    WORD wZoomPosMin;                         // 变焦参数最小值
-    WORD wZoomPosMax;                         // 变焦参数最大值
-} NET_DVR_PTZSCOPE, *LPNET_DVR_PTZSCOPE;
+// 注：PTZ位置信息结构（NET_DVR_PTZPOS, NET_DVR_PTZSCOPE）已删除
+// 当前封装仅使用基本PTZ控制命令，不涉及位置信息获取
 
 /* ========================================================================
- * 数据结构定义 - 其他
+ * 数据结构定义 - 其他（文档未涉及，保留注释供参考）
  * ======================================================================== */
 
-// 时间结构
-typedef struct tagNET_DVR_TIME {
-    DWORD dwYear;                             // 年
-    DWORD dwMonth;                            // 月
-    DWORD dwDay;                              // 日
-    DWORD dwHour;                             // 时
-    DWORD dwMinute;                           // 分
-    DWORD dwSecond;                           // 秒
-} NET_DVR_TIME, *LPNET_DVR_TIME;
+// 注：其他辅助结构（如 NET_DVR_TIME）已删除
+// 当前封装不涉及时间相关配置
 
 /* ========================================================================
  * 回调函数类型定义
@@ -359,7 +264,7 @@ typedef struct tagNET_DVR_TIME {
 // 报警回调函数
 typedef void(CALLBACK *MSGCallBack)(LONG lCommand, NET_DVR_ALARMER *pAlarmer, char *pAlarmInfo, DWORD dwBufLen, void* pUser);
 
-// 实时数据回调函数
+// 实时数据回调函数（预览使用，云台控制需要）
 typedef void(CALLBACK *REALDATACALLBACK)(LONG lRealHandle, DWORD dwDataType, BYTE *pBuffer, DWORD dwBufSize, void *pUser);
 
 // 登录结果回调函数（异步登录）
@@ -369,7 +274,10 @@ typedef void(CALLBACK *fLoginResultCallBack)(LONG lUserID, DWORD dwResult, LPNET
  * Go回调函数声明（供CGO使用）
  * ======================================================================== */
 
+// 登录结果回调（异步登录使用）
 extern void GoLoginResultCallback(LONG lUserID, DWORD dwResult, LPNET_DVR_DEVICEINFO_V30 lpDeviceInfo, void *pUser);
+
+// 实时数据回调（预览使用，云台控制需要）
 extern void GoRealDataCallback(LONG lRealHandle, DWORD dwDataType, BYTE *pBuffer, DWORD dwBufSize, uintptr_t handle);
 
 /* ========================================================================
@@ -386,7 +294,7 @@ HIKSDK_API BOOL HIKSDK_CALL NET_DVR_SetLogToFile(DWORD nLogLevel, char * strLogD
  * SDK函数声明 - 用户登录
  * ======================================================================== */
 
-// 用户登录（V30版本，兼容旧设备）
+// 用户登录（V30版本，兼容旧设备，云台控制常用）
 HIKSDK_API LONG HIKSDK_CALL NET_DVR_Login_V30(
     char *sDVRIP,                             // 设备IP地址
     WORD wDVRPort,                           // 设备端口号
@@ -417,60 +325,51 @@ HIKSDK_API BOOL HIKSDK_CALL NET_DVR_GetDVRIPByResolveSvr_EX(
 );
 
 /* ========================================================================
- * SDK函数声明 - 参数配置
+ * SDK函数声明 - 参数配置（文档未涉及，保留注释供参考）
  * ======================================================================== */
 
-HIKSDK_API BOOL HIKSDK_CALL NET_DVR_GetDVRConfig(
-    LONG lUserID,                            // 用户ID
-    DWORD dwCommand,                         // 配置命令
-    LONG lChannel,                           // 通道号
-    void* lpOutBuffer,                       // 输出缓冲区
-    DWORD dwOutBufferSize,                   // 输出缓冲区大小
-    DWORD* lpBytesReturned                   // 实际返回的字节数
-);
-
-HIKSDK_API BOOL HIKSDK_CALL NET_DVR_SetDVRConfig(
-    LONG lUserID,                            // 用户ID
-    DWORD dwCommand,                         // 配置命令
-    LONG lChannel,                           // 通道号
-    void* lpInBuffer,                        // 输入缓冲区
-    DWORD dwInBufferSize                     // 输入缓冲区大小
-);
+// 注：设备配置函数（NET_DVR_GetDVRConfig, NET_DVR_SetDVRConfig）已删除
+// 当前封装不涉及设备配置功能
 
 /* ========================================================================
  * SDK函数声明 - 报警功能
  * ======================================================================== */
 
+// 设置报警消息回调函数
 HIKSDK_API BOOL HIKSDK_CALL NET_DVR_SetDVRMessageCallBack_V30(
     MSGCallBack fMessageCallBack,            // 报警回调函数
     void* pUser                              // 用户数据
 );
 
+// 建立报警上传通道（布防）
 HIKSDK_API LONG HIKSDK_CALL NET_DVR_SetupAlarmChan_V41(
     LONG lUserID,                            // 用户ID
     LPNET_DVR_SETUPALARM_PARAM lpSetupParam  // 布防参数
 );
 
+// 关闭报警上传通道
 HIKSDK_API BOOL HIKSDK_CALL NET_DVR_CloseAlarmChan_V30(
     LONG lAlarmHandle                        // 报警句柄
 );
 
-HIKSDK_API BOOL HIKSDK_CALL NET_DVR_SetAlarmOut(
-    LONG lUserID,                            // 用户ID
-    LONG lAlarmOutPort,                      // 报警输出端口
-    DWORD dwAlarmOutState                    // 报警输出状态
+// 启动监听（接收设备主动上传的报警信息）
+HIKSDK_API LONG HIKSDK_CALL NET_DVR_StartListen_V30(
+    char *sLocalIP,                          // PC机本地IP地址（可以为NULL）
+    WORD wLocalPort,                         // PC本地监听端口号
+    MSGCallBack DataCallback,                // 回调函数
+    void* pUserData                          // 用户数据
 );
 
-HIKSDK_API BOOL HIKSDK_CALL NET_DVR_GetAlarmOut(
-    LONG lUserID,                            // 用户ID
-    LONG lAlarmOutPort,                      // 报警输出端口
-    DWORD *lpAlarmOutState                   // 报警输出状态
+// 停止监听
+HIKSDK_API BOOL HIKSDK_CALL NET_DVR_StopListen_V30(
+    LONG lListenHandle                       // 监听句柄
 );
 
 /* ========================================================================
- * SDK函数声明 - 实时预览
+ * SDK函数声明 - 实时预览（云台控制需要预览句柄）
  * ======================================================================== */
 
+// 实时预览（云台控制需要通过此函数获取预览句柄）
 HIKSDK_API LONG HIKSDK_CALL NET_DVR_RealPlay_V40(
     LONG lUserID,                            // 用户ID
     LPNET_DVR_PREVIEWINFO lpPreviewInfo,     // 预览参数
@@ -478,28 +377,9 @@ HIKSDK_API LONG HIKSDK_CALL NET_DVR_RealPlay_V40(
     void* pUser                              // 用户数据
 );
 
+// 停止实时预览
 HIKSDK_API BOOL HIKSDK_CALL NET_DVR_StopRealPlay(
     LONG lRealHandle                         // 预览句柄
-);
-
-HIKSDK_API BOOL HIKSDK_CALL NET_DVR_SetRealDataCallBack(
-    LONG lRealPlayHandle,                    // 预览句柄
-    REALDATACALLBACK cbRealDataCallBack,     // 数据回调函数
-    DWORD dwUser                             // 用户数据
-);
-
-HIKSDK_API BOOL HIKSDK_CALL NET_DVR_SaveRealData(
-    LONG lRealHandle,                        // 预览句柄
-    char *sFileName                          // 文件名
-);
-
-HIKSDK_API BOOL HIKSDK_CALL NET_DVR_StopSaveRealData(
-    LONG lRealHandle                         // 预览句柄
-);
-
-HIKSDK_API BOOL HIKSDK_CALL NET_DVR_CapturePicture(
-    LONG lRealHandle,                        // 预览句柄
-    char *sPicFileName                       // 图片文件名
 );
 
 /* ========================================================================
@@ -523,7 +403,7 @@ HIKSDK_API BOOL HIKSDK_CALL NET_DVR_PTZControlWithSpeed(
     LONG lRealHandle,                        // 预览句柄
     DWORD dwPTZCommand,                      // PTZ控制命令
     DWORD dwStop,                            // 是否停止：0-开始，1-停止
-    DWORD dwSpeed                            // 速度：0-7
+    DWORD dwSpeed                            // 速度：1-7
 );
 
 HIKSDK_API BOOL HIKSDK_CALL NET_DVR_PTZControlWithSpeed_Other(
@@ -531,7 +411,7 @@ HIKSDK_API BOOL HIKSDK_CALL NET_DVR_PTZControlWithSpeed_Other(
     LONG lChannel,                           // 通道号
     DWORD dwPTZCommand,                      // PTZ控制命令
     DWORD dwStop,                            // 是否停止：0-开始，1-停止
-    DWORD dwSpeed                            // 速度：0-7
+    DWORD dwSpeed                            // 速度：1-7
 );
 
 HIKSDK_API BOOL HIKSDK_CALL NET_DVR_PTZPreset(
@@ -580,13 +460,14 @@ HIKSDK_API BOOL HIKSDK_CALL NET_DVR_PTZTrack_Other(
  * ======================================================================== */
 
 HIKSDK_API DWORD HIKSDK_CALL NET_DVR_GetLastError();     // 获取最后错误码
+HIKSDK_API char* HIKSDK_CALL NET_DVR_GetErrorMsg(LONG *pErrorNo); // 获取错误信息
 HIKSDK_API DWORD HIKSDK_CALL NET_DVR_GetSDKVersion();    // 获取SDK版本
 
 /* ========================================================================
  * C包装函数（用于简化CGO调用）
  * ======================================================================== */
 
-// 包装的预览函数，自动设置Go回调
+// 包装的预览函数，自动设置Go回调（云台控制需要）
 static inline LONG NET_DVR_RealPlay_V40_WithCallback(LONG lUserID, LPNET_DVR_PREVIEWINFO lpPreviewInfo, uintptr_t handle) {
     return NET_DVR_RealPlay_V40(lUserID, lpPreviewInfo, (REALDATACALLBACK)GoRealDataCallback, (void*)handle);
 }

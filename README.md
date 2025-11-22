@@ -11,12 +11,12 @@ HikSDK 是海康威视官方 C SDK 的 Go 语言封装，通过 CGO 调用底层
 
 ## ✨ 功能特性
 
-- ✅ **设备管理**：设备登录/登出，获取设备信息，通道名称读取
-- ✅ **PTZ 控制**：云台旋转、变焦、焦点调节、预置点管理（配套 `consts` 常量包）
-- ✅ **视频预览**：实时视频预览，输出 PS 流，配合 `Receiver` 管道进行消费
-- ✅ **报警监听**：报警回调、布防/撤防、报警输出控制
-- ✅ **错误处理**：统一的 `HKError` 错误类型，带错误码和说明
-- ✅ **跨平台支持**：兼容 Windows / Linux amd64（内置海康官方 SDK 动态库）
+- ✅ **用户认证**：设备登录/登出（V30/V40）、动态IP解析
+- ✅ **PTZ 控制**：云台移动、变焦、焦点、光圈、预置点、巡航、轨迹、辅助设备
+- ✅ **报警监听**：报警事件监听和处理
+- ✅ **错误处理**：统一的错误类型，包含240+错误码和详细说明
+- ✅ **跨平台支持**：完美兼容 Windows/Linux amd64
+- ✅ **模块化设计**：独立子包，职责单一，易于扩展
 
 ## 🌍 跨平台兼容性
 
@@ -321,124 +321,111 @@ func main() {
 
 ### 2. PTZ 云台控制
 
-#### 使用预定义常量
+#### 云台移动控制
 
 ```go
 import (
 	"time"
-	"github.com/samsaralc/hiksdk/consts"
 	"github.com/samsaralc/hiksdk/core"
+	"github.com/samsaralc/hiksdk/core/ptz"
 )
 
-// SDK 已经提供了所有 PTZ 命令常量，直接使用
-// consts.PAN_RIGHT, consts.TILT_UP, consts.ZOOM_IN 等
+// 创建移动控制器
+movement := ptz.NewMovementController(dev.GetLoginID(), 1)
 
-// 云台右转（推荐使用 PTZControlWithSpeed_Other）
-success, err := dev.PTZControlWithSpeed_Other(
-	1,                 // 通道号
-	consts.PAN_RIGHT,  // PTZ命令：右转
-	consts.PTZ_START,  // 开始动作
-	4,                 // 速度：0-7
-)
-if err == nil && success {
-	time.Sleep(2 * time.Second)
-	// 停止
-	dev.PTZControlWithSpeed_Other(1, consts.PAN_RIGHT, consts.PTZ_STOP, 4)
-}
+// 右转2秒，速度5
+movement.Right(5, 2*time.Second)
 
-// 变焦放大（不需要速度参数）
-dev.PTZControl_Other(1, consts.ZOOM_IN, consts.PTZ_START)
-time.Sleep(1 * time.Second)
-dev.PTZControl_Other(1, consts.ZOOM_IN, consts.PTZ_STOP) // 停止
+// 上仰2秒，速度7
+movement.Up(7, 2*time.Second)
+
+// 右上斜向移动3秒
+movement.UpRight(5, 3*time.Second)
+
+// 自动扫描
+movement.AutoScan(3)           // 开始扫描，速度3
+time.Sleep(10 * time.Second)   // 扫描10秒
+movement.StopAutoScan()        // 停止扫描
 ```
 
-#### PTZ 控制完整示例
+#### 相机控制（变焦/焦点/光圈）
 
 ```go
-import (
-	"time"
+// 创建相机控制器
+camera := ptz.NewCameraController(dev.GetLoginID(), 1)
 
-	"github.com/samsaralc/hiksdk/consts"
-	"github.com/samsaralc/hiksdk/core"
-)
+// 焦距放大（拉近）1秒
+camera.ZoomIn(1 * time.Second)
 
-// 云台移动示例
-func ptzMoveExample(dev *core.HKDevice) {
-	channelId := 1
-	
-	// 右转 2 秒
-	dev.PTZControlWithSpeed_Other(channelId, consts.PAN_RIGHT, consts.PTZ_START, 4)
-	time.Sleep(2 * time.Second)
-	dev.PTZControlWithSpeed_Other(channelId, consts.PAN_RIGHT, consts.PTZ_STOP, 4)
-	
-	// 上仰 2 秒
-	dev.PTZControlWithSpeed_Other(channelId, consts.TILT_UP, consts.PTZ_START, 4)
-	time.Sleep(2 * time.Second)
-	dev.PTZControlWithSpeed_Other(channelId, consts.TILT_UP, consts.PTZ_STOP, 4)
-	
-	// 右上斜向移动
-	dev.PTZControlWithSpeed_Other(channelId, consts.UP_RIGHT, consts.PTZ_START, 3)
-	time.Sleep(2 * time.Second)
-	dev.PTZControlWithSpeed_Other(channelId, consts.UP_RIGHT, consts.PTZ_STOP, 3)
-}
+// 焦距缩小（拉远）1秒
+camera.ZoomOut(1 * time.Second)
 
-// 变焦和焦点控制示例
-func zoomFocusExample(dev *core.HKDevice) {
-	channelId := 1
-	
-	// 焦距放大（拉近）
-	dev.PTZControl_Other(channelId, consts.ZOOM_IN, consts.PTZ_START)
-	time.Sleep(1 * time.Second)
-	dev.PTZControl_Other(channelId, consts.ZOOM_IN, consts.PTZ_STOP)
-	
-	// 焦点前调（聚焦）
-	dev.PTZControl_Other(channelId, consts.FOCUS_NEAR, consts.PTZ_START)
-	time.Sleep(1 * time.Second)
-	dev.PTZControl_Other(channelId, consts.FOCUS_NEAR, consts.PTZ_STOP)
-}
+// 焦点前调（聚焦近处）1秒
+camera.FocusNear(1 * time.Second)
 
-// 预置点使用示例
-func presetExample(dev *core.HKDevice) {
-	channelId := 1
-	presetId := 1
-	
-	// 设置预置点1
-	dev.PTZControl_Other(channelId, consts.SET_PRESET, presetId)
-	
-	// 移动云台到其他位置
-	dev.PTZControlWithSpeed_Other(channelId, consts.PAN_RIGHT, consts.PTZ_START, 4)
-	time.Sleep(3 * time.Second)
-	dev.PTZControlWithSpeed_Other(channelId, consts.PAN_RIGHT, consts.PTZ_STOP, 4)
-	
-	// 转到预置点1
-	dev.PTZControl_Other(channelId, consts.GOTO_PRESET, presetId)
-	time.Sleep(2 * time.Second) // 等待云台移动到位
-}
+// 光圈扩大（变亮）1秒
+camera.IrisOpen(1 * time.Second)
 ```
 
-### 3. 视频预览
+#### 预置点控制
 
 ```go
-// 创建接收器
-receiver := &core.Receiver{}
-receiver.Start()
+// 创建预置点控制器
+preset := ptz.NewPresetManager(dev.GetLoginID(), 1)
 
-// 启动实时预览
-realHandle, err := dev.RealPlay_V40(channelId, receiver)
-if err != nil {
-	fmt.Printf("预览失败: %v\n", err)
-	return
-}
-defer dev.StopRealPlay()
+// 设置预置点1
+preset.SetPreset(1)
 
-// 接收视频数据
-for data := range receiver.PSMouth {
-	// 处理视频数据包
-	fmt.Printf("收到数据包，大小: %d bytes\n", len(data))
-}
+// 移动到其他位置
+movement.Left(4, 3*time.Second)
+
+// 转到预置点1
+preset.GotoPreset(1)
+
+// 删除预置点1
+preset.DeletePreset(1)
 ```
 
-### 4. 报警监听
+#### 巡航控制
+
+```go
+// 创建巡航控制器
+cruise := ptz.NewCruiseManager(dev.GetLoginID(), 1)
+
+// 配置巡航路径1
+cruise.AddPresetToCruise(1, 1, 10)    // 路径1点1->预置点10
+cruise.AddPresetToCruise(1, 2, 20)    // 路径1点2->预置点20
+cruise.SetCruiseDwellTime(1, 1, 5)    // 点1停顿5秒
+cruise.SetCruiseSpeed(1, 1, 20)       // 点1速度20
+
+// 开始巡航
+cruise.StartCruise(1)
+
+// 停止巡航
+cruise.StopCruise(1)
+```
+
+#### 轨迹控制
+
+```go
+// 创建轨迹控制器
+track := ptz.NewTrackManager(dev.GetLoginID(), 1)
+
+// 开始记录轨迹
+track.StartRecordTrack()
+
+// 手动控制云台移动（会被记录）
+movement.Right(5, 2*time.Second)
+movement.Up(5, 2*time.Second)
+
+// 停止记录
+track.StopRecordTrack()
+
+// 执行记录的轨迹
+track.RunTrack()
+```
+
+### 3. 报警监听
 
 ```go
 // 设置报警回调
@@ -464,42 +451,46 @@ defer dev.StopListenAlarmMsg()
 
 ```
 hiksdk/
-├── core/                   # SDK 核心包
-│   ├── device.go          # 设备管理和初始化
-│   ├── login.go           # 登录认证和动态IP解析
-│   ├── config.go          # 设备配置管理
-│   ├── video.go           # 视频预览功能
-│   ├── ptz.go             # PTZ云台控制
-│   ├── ptz_commands.go    # PTZ命令常量（63个命令）
-│   ├── alarm.go           # 报警监听功能
-│   ├── errors.go          # 错误处理
-│   ├── helpers.go         # 工具函数
-│   ├── transceiver.go     # PS流数据收发器
-│   └── hiksdk_wrapper.h   # CGO头文件
-├── examples/               # 可运行的示例代码
-│   ├── 01_login_methods.go    # 登录方式示例
-│   ├── 02_device_info.go      # 设备信息示例
-│   ├── 03_ptz_control.go      # PTZ控制示例
-│   ├── 04_video_preview.go    # 视频预览示例
-│   ├── 05_alarm_listen.go     # 报警监听示例
-│   └── README.md              # 示例说明
-├── docs/                   # 文档目录
-│   ├── 用户.md            # 官方接口文档
-│   ├── 预置点.md          # 预置点说明
-│   ├── 错误代码及说明.md  # 错误代码参考
-│   └── LOGIN_MODES.md     # 登录方式说明
-├── include/                # C 头文件
-│   ├── HCNetSDK.h         # 海康SDK主头文件
-│   ├── DataType.h         # 数据类型定义
-│   ├── DecodeCardSdk.h    # 解码卡SDK
-│   └── plaympeg4.h        # MPEG4播放
-├── lib/                    # 动态链接库
-│   ├── Windows/           # Windows平台DLL
-│   └── Linux/             # Linux平台SO
-├── go.mod                  # Go模块定义
-├── LICENSE                 # MIT许可证
-├── CONTRIBUTING.md         # 贡献指南
-└── README.md              # 本文件
+├── core/                      # 核心包
+│   ├── errors.go             # 统一错误处理（240+错误码）
+│   ├── hiksdk_wrapper.h      # CGO跨平台头文件
+│   │
+│   ├── auth/                 # 认证模块（✅ 用户注册.md）
+│   │   └── login.go          # SDK初始化、登录/登出、动态IP解析
+│   │
+│   ├── alarm/                # 报警模块（✅ 监听报警.md）
+│   │   └── listener.go       # 报警监听
+│   │
+│   ├── ptz/                  # PTZ控制模块（✅ 云台控制.md + 预置点.md + 巡航.md）
+│   │   ├── control.go        # 移动/相机/辅助设备控制
+│   │   ├── preset.go         # 预置点管理
+│   │   ├── cruise.go         # 巡航管理
+│   │   └── track.go          # 轨迹管理
+│   │
+│   └── utils/                # 工具模块
+│       └── encoding.go       # GBK<->UTF8编码转换
+│
+├── examples/                  # 示例代码（5个）
+│   ├── 01_login_methods.go   # 登录方式示例
+│   ├── 03_ptz_control.go     # PTZ基础控制
+│   ├── 05_alarm_listen.go    # 报警监听
+│   ├── 06_cruise_track.go    # 巡航与轨迹
+│   └── 07_ptz_advanced.go    # PTZ高级控制
+│
+├── docs/                      # 官方文档（7个）
+│   ├── 用户注册.md           # 登录接口文档
+│   ├── 云台控制.md           # 云台控制文档
+│   ├── 预置点.md             # 预置点文档
+│   ├── 巡航.md               # 巡航与轨迹文档
+│   ├── 监听报警.md           # 报警监听文档
+│   ├── 获取错误信息.md       # 错误信息文档
+│   └── 错误代码及说明.md     # 错误代码参考
+│
+├── include/                   # C SDK 头文件
+├── lib/                       # 动态链接库（Windows/Linux）
+├── go.mod                     # Go模块定义
+├── LICENSE                    # MIT许可证
+└── README.md                 # 本文件
 ```
 
 ## 📚 API 文档
@@ -532,12 +523,6 @@ func main() {
 	// ... 你的代码
 }
 
-// 兼容旧版本：手动初始化（仍然支持）
-func main() {
-	core.InitHikSDK()  // 手动初始化
-	defer core.Cleanup() // 清理资源
-	// ... 你的代码
-}
 ```
 
 #### 2. 设备登录
@@ -590,119 +575,102 @@ channels, err := dev.GetChannelName()
 
 ### PTZ 云台控制
 
-#### PTZ 控制方法对比
+#### 控制器列表
 
-| 方法 | 参数 | 需要预览 | 推荐度 | 说明 |
-|------|------|---------|--------|------|
-| `PTZControlWithSpeed_Other` | 通道号+命令+速度 | ❌ 不需要 | ⭐⭐⭐⭐⭐ | **推荐使用** |
-| `PTZControl_Other` | 通道号+命令 | ❌ 不需要 | ⭐⭐⭐⭐ | 无速度参数版本 |
-| `PTZControlWithSpeed` | 命令+速度 | ✅ 需要 | ⭐⭐ | 需先调用RealPlay_V40 |
-| `PTZControl` | 命令 | ✅ 需要 | ⭐⭐ | 需先调用RealPlay_V40 |
+| 控制器 | 创建方式 | 主要功能 |
+|--------|---------|---------|
+| `MovementController` | `ptz.NewMovementController(userID, channel)` | 云台移动、自动扫描 |
+| `CameraController` | `ptz.NewCameraController(userID, channel)` | 变焦、焦点、光圈 |
+| `PresetManager` | `ptz.NewPresetManager(userID, channel)` | 预置点设置/跳转/删除 |
+| `CruiseManager` | `ptz.NewCruiseManager(userID, channel)` | 巡航路径配置和控制 |
+| `TrackManager` | `ptz.NewTrackManager(userID, channel)` | 轨迹录制和回放 |
+| `AuxiliaryController` | `ptz.NewAuxiliaryController(userID, channel)` | 灯光/雨刷/风扇等 |
 
-#### 1. 云台移动控制（推荐方法）
+#### 1. 云台移动
 
 ```go
-// PTZControlWithSpeed_Other - 最灵活，不需要预览（推荐✅）
-success, err := dev.PTZControlWithSpeed_Other(
-	channelId,        // 通道号（1开始）
-	core.PAN_RIGHT,    // PTZ命令
-	core.PTZ_START,    // 0=开始，1=停止
-	4,                // 速度：0-7
-)
+import "github.com/samsaralc/hiksdk/core/ptz"
 
-// PTZControl_Other - 无速度参数
-success, err := dev.PTZControl_Other(
-	channelId,         // 通道号
-	consts.ZOOM_IN,    // PTZ命令
-	consts.PTZ_START,  // 0=开始，1=停止
-)
+movement := ptz.NewMovementController(dev.GetLoginID(), 1)
 
-// PTZControlWithSpeed - 需要先启动预览
-receiver := &core.Receiver{}
-receiver.Start()
-lRealHandle, _ := dev.RealPlay_V40(1, receiver)
-// 现在可以使用（控制当前预览的通道）
-success, err := dev.PTZControlWithSpeed(consts.PAN_RIGHT, consts.PTZ_START, 4)
+// 单方向移动（自动处理开始/停止，速度1-7）
+movement.Up(5, 2*time.Second)       // 上仰
+movement.Down(5, 2*time.Second)     // 下俯
+movement.Left(5, 2*time.Second)     // 左转
+movement.Right(5, 2*time.Second)    // 右转
+
+// 组合移动
+movement.UpLeft(4, 3*time.Second)   // 左上
+movement.UpRight(4, 3*time.Second)  // 右上
+
+// 自动扫描
+movement.AutoScan(3)                // 开始，速度3
+movement.StopAutoScan()             // 停止
 ```
 
-#### 2. PTZ 命令常量（已内置 63 个命令）
+#### 2. 相机控制
 
 ```go
-// ========== 基本移动（需要速度） ==========
-consts.TILT_UP    = 21  // 云台上仰
-consts.TILT_DOWN  = 22  // 云台下俯
-consts.PAN_LEFT   = 23  // 云台左转
-consts.PAN_RIGHT  = 24  // 云台右转
+camera := ptz.NewCameraController(dev.GetLoginID(), 1)
 
-// ========== 组合移动（需要速度） ==========
-consts.UP_LEFT    = 25  // 上仰+左转
-consts.UP_RIGHT   = 26  // 上仰+右转
-consts.DOWN_LEFT  = 27  // 下俯+左转
-consts.DOWN_RIGHT = 28  // 下俯+右转
+// 变焦
+camera.ZoomIn(1*time.Second)        // 放大
+camera.ZoomOut(1*time.Second)       // 缩小
 
-// ========== 焦距控制 ==========
-consts.ZOOM_IN    = 11  // 焦距变大（拉近）
-consts.ZOOM_OUT   = 12  // 焦距变小（拉远）
+// 焦点
+camera.FocusNear(1*time.Second)     // 前调
+camera.FocusFar(1*time.Second)      // 后调
 
-// ========== 焦点控制 ==========
-consts.FOCUS_NEAR = 13  // 焦点前调
-consts.FOCUS_FAR  = 14  // 焦点后调
-
-// ========== 光圈控制 ==========
-consts.IRIS_OPEN  = 15  // 光圈扩大（变亮）
-consts.IRIS_CLOSE = 16  // 光圈缩小（变暗）
-
-// ========== 预置点操作 ==========
-consts.SET_PRESET  = 8   // 设置预置点
-consts.CLE_PRESET  = 9   // 清除预置点
-consts.GOTO_PRESET = 39  // 转到预置点
-
-// ========== 辅助设备 ==========
-consts.LIGHT_PWRON  = 2  // 接通灯光
-consts.WIPER_PWRON  = 3  // 接通雨刷
-
-// ========== 自动扫描 ==========
-consts.PAN_AUTO   = 29  // 左右自动扫描
-consts.PAN_CIRCLE = 50  // 圆周扫描
-
-// ========== 巡航和轨迹 ==========
-consts.RUN_SEQ         = 37  // 开始巡航
-consts.STOP_SEQ        = 38  // 停止巡航
-consts.RUN_CRUISE      = 36  // 开始轨迹
-consts.STOP_CRUISE     = 44  // 停止轨迹
-
-// ========== 组合控制（移动+变焦） ==========
-consts.TILT_DOWN_ZOOM_IN  = 58  // 下俯+放大
-consts.PAN_LEFT_ZOOM_IN   = 60  // 左转+放大
-consts.PAN_RIGHT_ZOOM_IN  = 62  // 右转+放大
-// ... 更多组合命令，共63个
-
-// 查看完整命令列表：consts/ptz.go
+// 光圈
+camera.IrisOpen(1*time.Second)      // 扩大
+camera.IrisClose(1*time.Second)     // 缩小
 ```
 
-#### 3. 辅助常量
+#### 3. 预置点
 
 ```go
-// 动作控制
-consts.PTZ_START = 0  // 开始动作
-consts.PTZ_STOP  = 1  // 停止动作
+preset := ptz.NewPresetManager(dev.GetLoginID(), 1)
 
-// 速度控制
-consts.PTZ_SPEED_MIN     = 0  // 最小速度
-consts.PTZ_SPEED_MAX     = 7  // 最大速度
-consts.PTZ_SPEED_DEFAULT = 4  // 默认速度
-
-// 获取命令名称（调试用）
-name := consts.GetPTZCommandName(consts.PAN_RIGHT)
-// 返回: "云台右转"
+preset.SetPreset(1)                 // 设置预置点1
+preset.GotoPreset(1)                // 转到预置点1
+preset.DeletePreset(1)              // 删除预置点1
 ```
 
-#### 4. 获取 PTZ 位置
+#### 4. 巡航
 
 ```go
-// 获取指定通道的 PTZ 当前位置
-dev.GetChannelPTZ(channelId)
-// 会打印：水平角度、垂直角度、变焦倍数
+cruise := ptz.NewCruiseManager(dev.GetLoginID(), 1)
+
+// 配置路径（路径1-32，点1-32，预置点1-255）
+cruise.AddPresetToCruise(1, 1, 10)  // 路径1点1->预置点10
+cruise.SetCruiseDwellTime(1, 1, 5)  // 停顿5秒
+cruise.SetCruiseSpeed(1, 1, 20)     // 速度20（1-40）
+
+// 控制
+cruise.StartCruise(1)               // 开始巡航
+cruise.StopCruise(1)                // 停止巡航
+```
+
+#### 5. 轨迹
+
+```go
+track := ptz.NewTrackManager(dev.GetLoginID(), 1)
+
+track.StartRecordTrack()            // 开始记录
+// ... 控制云台移动
+track.StopRecordTrack()             // 停止记录
+track.RunTrack()                    // 执行轨迹
+```
+
+#### 6. 辅助设备
+
+```go
+aux := ptz.NewAuxiliaryController(dev.GetLoginID(), 1)
+
+aux.LightOn() / aux.LightOff()      // 灯光
+aux.WiperOn() / aux.WiperOff()      // 雨刷
+aux.FanOn() / aux.FanOff()          // 风扇
+aux.HeaterOn() / aux.HeaterOff()    // 加热器
 ```
 
 ---

@@ -6,7 +6,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/samsaralc/hiksdk/core"
+	"github.com/samsaralc/hiksdk/core/alarm"
+	"github.com/samsaralc/hiksdk/core/auth"
 )
 
 // 报警监听示例
@@ -15,38 +16,35 @@ func main() {
 	fmt.Println("海康威视 SDK - 报警监听示例")
 	fmt.Println("========================================")
 
-	// 设备连接信息
-	deviceInfo := core.DeviceInfo{
+	// 设备连接凭据
+	cred := &auth.Credentials{
 		IP:       "192.168.1.64",
 		Port:     8000,
-		UserName: "admin",
+		Username: "admin",
 		Password: "password",
 	}
 
-	// 创建设备并登录
-	dev := core.NewHKDevice(deviceInfo)
-	loginId, err := dev.LoginV40()
+	// 登录设备
+	session, err := auth.LoginV40(cred)
 	if err != nil {
 		fmt.Printf("登录失败: %v\n", err)
 		return
 	}
-	fmt.Printf("登录成功 (ID: %d)\n", loginId)
-	defer dev.Logout()
+	fmt.Printf("登录成功 (ID: %d)\n", session.LoginID)
+	defer auth.Logout(session.LoginID)
+	defer auth.Cleanup()
 
-	// 设置报警回调
-	fmt.Println("\n设置报警回调...")
-	if err := dev.SetAlarmCallBack(); err != nil {
-		fmt.Printf("设置回调失败: %v\n", err)
-		return
-	}
+	// 创建报警监听器
+	fmt.Println("\n创建报警监听器...")
+	listener := alarm.NewAlarmListener(session.LoginID)
 
 	// 启动报警监听
 	fmt.Println("启动报警监听...")
-	if err := dev.StartListenAlarmMsg(); err != nil {
+	if err := listener.Start(); err != nil {
 		fmt.Printf("启动监听失败: %v\n", err)
 		return
 	}
-	defer dev.StopListenAlarmMsg()
+	defer listener.Stop()
 
 	fmt.Println("\n监听中... 按 Ctrl+C 退出")
 	fmt.Println("等待接收报警消息（移动侦测、遮挡报警等）")
